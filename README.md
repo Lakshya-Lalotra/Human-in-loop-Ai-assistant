@@ -285,6 +285,17 @@ data/                          # Runtime data (created automatically)
 - [ ] Multi-language support
 - [ ] Integration with booking systems
 
+## 🔍 Smart Search Algorithm
+
+The knowledge base uses an intelligent search system with:
+
+- **Synonym Mapping**: "price" ↔ "cost", "color" ↔ "coloring", "hair" ↔ "haircut"
+- **Scoring System**: Prioritizes exact matches, learned entries, and category relevance
+- **Partial Matching**: Handles variations like "hair color price" → "hair coloring cost"
+- **Learning Priority**: Learned entries get bonus points for better matching
+
+This ensures the AI finds the most relevant answers, especially for supervisor-learned information.
+
 ## 🛠️ Technology Stack
 
 - **Framework**: LiveKit Agents (Node.js)
@@ -297,39 +308,14 @@ data/                          # Runtime data (created automatically)
 - **Database**: JSON files (development), ready for PostgreSQL/DynamoDB
 - **Runtime**: Node.js 22+
 
-## 📝 Development Notes
-
-### Error Handling
-- All database operations wrapped in try-catch
-- Graceful fallbacks for notification failures
-- Timeout handling for stale requests
-
-### Testing
-- Test the agent with various questions
-- Verify escalation flow works end-to-end
-- Check knowledge base updates persist
-- Confirm customer follow-up triggers
 
 ### Monitoring
 - Console logs for all major operations
 - Request IDs for tracing
 - Usage metrics via LiveKit
 
-## 🎥 Demo Video
-
-Record a video showing:
-1. Starting the system
-2. Making a test call
-3. AI answering a known question
-4. AI escalating an unknown question
-5. Supervisor viewing and responding
-6. Customer receiving follow-up
-7. Knowledge base updated
 
 ## 📄 License
 
 MIT License - See LICENSE file for details.
 
-## 👨‍💻 Author
-
-Built as part of the Frontdesk Engineering Test - demonstrating clean architecture, product thinking, and practical AI system design.
