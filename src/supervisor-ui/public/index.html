@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supervisor Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Supervisor Dashboard</h1>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('pending')">Pending Requests</button>
+            <button class="tab" onclick="switchTab('all')">All Requests</button>
+            <button class="tab" onclick="switchTab('knowledge')">Knowledge Base</button>
+        <button onclick="refreshData()">Refresh</button>
+        </div>
+
+        <div id="pending-tab" class="tab-content active">
+        <div id="pending-requests"></div>
+        </div>
+
+        <div id="all-tab" class="tab-content">
+        <div id="all-requests"></div>
+        </div>
+
+        <div id="knowledge-tab" class="tab-content">
+        <table border="1" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th>Question</th>
+                            <th>Answer</th>
+                            <th>Source</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="knowledge-list"></tbody>
+                </table>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

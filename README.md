@@ -1,99 +1,335 @@
-<a href="https://livekit.io/">
-  <img src="./.github/assets/livekit-mark.png" alt="LiveKit logo" width="100" height="100">
-</a>
+# Glamour Salon - AI Receptionist with Human-in-the-Loop
 
-# LiveKit Agents Starter - Node.js
+A voice AI receptionist system for a salon that can intelligently escalate to human supervisors when it doesn't know the answer, learn from their responses, and follow up with customers automatically.
 
-A complete starter project for building voice AI apps with [LiveKit Agents for Node.js](https://github.com/livekit/agents-js) and [LiveKit Cloud](https://cloud.livekit.io/).
+Built with LiveKit Agents (Node.js), this project demonstrates a practical human-in-the-loop AI system that improves over time.
 
-The starter project includes:
+## 🎯 Project Overview
 
-- A simple voice AI assistant, ready for extension and customization
-- A voice AI pipeline with [models](https://docs.livekit.io/agents/models) from OpenAI, Cartesia, and AssemblyAI served through LiveKit Cloud
-  - Easily integrate your preferred [LLM](https://docs.livekit.io/agents/models/llm/), [STT](https://docs.livekit.io/agents/models/stt/), and [TTS](https://docs.livekit.io/agents/models/tts/) instead, or swap to a realtime model like the [OpenAI Realtime API](https://docs.livekit.io/agents/models/realtime/openai)
-- [LiveKit Turn Detector](https://docs.livekit.io/agents/build/turns/turn-detector/) for contextually-aware speaker detection, with multilingual support
-- [Background voice cancellation](https://docs.livekit.io/home/cloud/noise-cancellation/)
-- Integrated [metrics and logging](https://docs.livekit.io/agents/build/metrics/)
-- A Dockerfile ready for [production deployment](https://docs.livekit.io/agents/ops/deployment/)
+This system implements:
+- **AI Voice Agent**: Answers calls about salon services, hours, pricing, and location
+- **Smart Escalation**: Automatically escalates unknown questions to human supervisors
+- **Human Supervisor UI**: Web dashboard for supervisors to view and respond to help requests
+- **Knowledge Base Learning**: Automatically updates the AI's knowledge base when supervisors answer questions
+- **Customer Follow-up**: Notifies customers when their questions are answered
+- **Request Lifecycle Management**: Tracks requests from pending → resolved/timeout
 
-This starter app is compatible with any [custom web/mobile frontend](https://docs.livekit.io/agents/start/frontend/) or [SIP-based telephony](https://docs.livekit.io/agents/start/telephony/).
+## 🏗️ Architecture & Design Decisions
 
-## Dev Setup
+### Database Design
 
-This project uses [pnpm](https://pnpm.io/) as the package manager.
+**Choice**: Simple JSON file storage (`data/*.json`)
+- **Why**: Fast iteration, no external dependencies, easy to inspect
+- **Production alternative**: DynamoDB, PostgreSQL, or Firebase
+- **Scalability**: For 10-1000 requests/day, this is sufficient. Above that, migrate to a real database with indexing
 
-Clone the repository and install dependencies:
+**Data Models**:
 
-```console
-cd agent-starter-node
+1. **HelpRequest**: Tracks questions escalated to supervisors
+   ```typescript
+   {
+     id: string
+     customerPhone: string
+     question: string
+     status: 'pending' | 'resolved' | 'timeout'
+     supervisorAnswer?: string
+     timeoutAt: string  // Auto-timeout after 1 hour
+   }
+   ```
+
+2. **KnowledgeEntry**: AI's knowledge base
+   ```typescript
+   {
+     id: string
+     question: string
+     answer: string
+     source: 'initial' | 'learned'  // Track learning
+     createdAt: string
+   }
+   ```
+
+### Request Lifecycle
+
+```
+Customer asks unknown question
+        ↓
+AI uses requestHelp tool
+        ↓
+Create HelpRequest (status: pending)
+        ↓
+Notify supervisor (console/webhook)
+        ↓
+[Wait for supervisor response or timeout]
+        ↓
+Supervisor responds via UI
+        ↓
+Update HelpRequest (status: resolved)
+        ↓
+Add to Knowledge Base
+        ↓
+Notify customer with answer
+```
+
+**Timeout Handling**: Requests auto-timeout after 1 hour. The system checks timeouts when fetching pending requests, marking expired ones as 'timeout'.
+
+### Agent Design
+
+**Tools Provided to AI**:
+1. `searchKnowledge`: Query the knowledge base
+2. `requestHelp`: Escalate to human supervisor
+
+**Why this approach**:
+- Simple and predictable
+- AI explicitly decides when to escalate
+- Clear separation between known/unknown information
+- Prevents hallucination by giving AI an "I don't know" option
+
+### Supervisor UI
+
+**Choice**: Lightweight Express + vanilla JavaScript
+- **Why**: No build step, works immediately, easy to understand
+- **Features**:
+  - Real-time dashboard with auto-refresh
+  - Pending/resolved request views
+  - Knowledge base browser
+  - One-click response with automatic follow-up
+
+### Notification System
+
+**Current**: Console-based (for development)
+**Production-ready**: Webhook integration for Twilio/SMS
+
+```typescript
+interface NotificationService {
+  notifySupervisor(request: HelpRequest): Promise<void>
+  notifyCustomer(phone: string, message: string): Promise<void>
+}
+```
+
+Easily swap implementations without changing business logic.
+
+### Scaling Considerations
+
+**Current (10-100 requests/day)**:
+- ✅ JSON file storage
+- ✅ Single server instance
+- ✅ In-memory operations
+
+**Medium Scale (100-1000 requests/day)**:
+- → Add database connection pooling
+- → Implement caching layer (Redis)
+- → Add proper logging/monitoring
+
+**High Scale (1000+ requests/day)**:
+- → Migrate to PostgreSQL/DynamoDB
+- → Add message queue (SQS/RabbitMQ) for notifications
+- → Implement worker pool for concurrent requests
+- → Add load balancer for multiple agent instances
+
+## 🚀 Setup Instructions
+
+### Prerequisites
+
+- Node.js >= 22.0.0
+- pnpm >= 10.0.0
+- LiveKit Cloud account (free tier works)
+
+### Installation
+
+1. **Clone and install dependencies**:
+   ```bash
 pnpm install
 ```
 
-Sign up for [LiveKit Cloud](https://cloud.livekit.io/) then set up the environment by copying `.env.example` to `.env.local` and filling in the required keys:
+2. **Set up LiveKit credentials**:
+   - Sign up at [LiveKit Cloud](https://cloud.livekit.io/)
+   - Get your credentials from the dashboard
+   - Already provided in `.env.local` or create it:
+   ```env
+   LIVEKIT_URL=wss://your-project.livekit.cloud
+   LIVEKIT_API_KEY=your_api_key
+   LIVEKIT_API_SECRET=your_api_secret
+   ```
 
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
+3. **Initialize the knowledge base**:
+   ```bash
+   pnpm run init-db
+   ```
 
-You can load the LiveKit environment automatically using the [LiveKit CLI](https://docs.livekit.io/home/cli/cli-setup):
+4. **Download required AI models**:
+   ```bash
+   pnpm run download-files
+   ```
 
+### Running the System
+
+**Option 1: Run everything together (recommended for development)**:
 ```bash
-lk cloud auth
-lk app env -w -d .env.local
+pnpm run dev:all
 ```
 
-## Run the agent
+This starts:
+- AI agent on LiveKit
+- Supervisor UI at http://localhost:3001
 
-Before your first run, you must download certain models such as [Silero VAD](https://docs.livekit.io/agents/build/turns/vad/) and the [LiveKit turn detector](https://docs.livekit.io/agents/build/turns/turn-detector/):
+**Option 2: Run separately**:
 
-```console
-pnpm run download-files
+Terminal 1 - Supervisor UI:
+```bash
+pnpm run supervisor
 ```
 
-To run the agent during development, use the `dev` command:
-
-```console
+Terminal 2 - AI Agent:
+```bash
 pnpm run dev
 ```
 
-In production, use the `start` command:
+### Testing the System
 
-```console
-pnpm run start
+1. **Open Supervisor UI**: http://localhost:3001
+
+2. **Connect a frontend**: Use one of LiveKit's starter frontends:
+   - [React Web App](https://github.com/livekit-examples/agent-starter-react)
+   - [Flutter App](https://github.com/livekit-examples/agent-starter-flutter)
+   - Or test via LiveKit Playground in your cloud dashboard
+
+3. **Test Scenarios**:
+   - Ask: "What are your hours?" → AI knows this
+   - Ask: "Do you offer wedding hair packages?" → AI escalates to supervisor
+   - Check supervisor UI for the new request
+   - Answer the question in the UI
+   - Watch the console for customer follow-up notification
+
+## 📂 Project Structure
+
+```
+src/
+├── agent.ts                    # Main AI agent with LiveKit integration
+├── database/
+│   ├── types.ts               # Data model definitions
+│   ├── store.ts               # JSON file storage implementation
+│   ├── seed.ts                # Initial knowledge base data
+│   └── init.ts                # Database initialization script
+├── services/
+│   ├── escalation.ts          # Help request creation & follow-up
+│   └── notification.ts        # Supervisor/customer notifications
+└── supervisor-ui/
+    ├── server.ts              # Express API server
+    └── public/
+        └── index.html         # Supervisor dashboard UI
+
+data/                          # Runtime data (created automatically)
+├── help-requests.json
+├── knowledge-base.json
+└── call-sessions.json
 ```
 
-## Frontend & Telephony
+## 🔧 Key Features
 
-Get started quickly with our pre-built frontend starter apps, or add telephony support:
+### 1. AI Agent Capabilities
+- Voice conversation using OpenAI GPT-4.1-mini (LLM)
+- Speech-to-text with AssemblyAI
+- Text-to-speech with Cartesia
+- Salon-specific knowledge base
+- Smart escalation when uncertain
 
-| Platform         | Link                                                                                                                | Description                                        |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| **Web**          | [`livekit-examples/agent-starter-react`](https://github.com/livekit-examples/agent-starter-react)                   | Web voice AI assistant with React & Next.js        |
-| **iOS/macOS**    | [`livekit-examples/agent-starter-swift`](https://github.com/livekit-examples/agent-starter-swift)                   | Native iOS, macOS, and visionOS voice AI assistant |
-| **Flutter**      | [`livekit-examples/agent-starter-flutter`](https://github.com/livekit-examples/agent-starter-flutter)               | Cross-platform voice AI assistant app              |
-| **React Native** | [`livekit-examples/voice-assistant-react-native`](https://github.com/livekit-examples/voice-assistant-react-native) | Native mobile app with React Native & Expo         |
-| **Android**      | [`livekit-examples/agent-starter-android`](https://github.com/livekit-examples/agent-starter-android)               | Native Android app with Kotlin & Jetpack Compose   |
-| **Web Embed**    | [`livekit-examples/agent-starter-embed`](https://github.com/livekit-examples/agent-starter-embed)                   | Voice AI widget for any website                    |
-| **Telephony**    | [📚 Documentation](https://docs.livekit.io/agents/start/telephony/)                                                 | Add inbound or outbound calling to your agent      |
+### 2. Help Request Management
+- Automatic request creation on escalation
+- Unique request IDs for tracking
+- 1-hour auto-timeout for pending requests
+- Status tracking: pending → resolved/timeout
 
-For advanced customization, see the [complete frontend guide](https://docs.livekit.io/agents/start/frontend/).
+### 3. Supervisor Dashboard
+- View all pending requests
+- Historical request log
+- One-click response interface
+- Knowledge base browser
+- Auto-refresh every 30 seconds
 
-## Using this template repo for your own project
+### 4. Knowledge Base
+- Pre-seeded with salon information
+- Automatically updated when supervisor responds
+- Tracks source (initial vs. learned)
+- Simple keyword search (can be upgraded to semantic search)
 
-Once you've started your own project based on this repo, you should:
+### 5. Customer Follow-up
+- Automatic notification when question is answered
+- Console-based (development)
+- Webhook-ready for SMS integration (production)
 
-1. **Check in your `pnpm-lock.yaml`**: This file is currently untracked for the template, but you should commit it to your repository for reproducible builds and proper configuration management. (The same applies to `livekit.toml`, if you run your agents in LiveKit Cloud)
+## 🎨 Design Principles
 
-2. **Remove the git tracking test**: Delete the "Check files not tracked in git" step from `.github/workflows/tests.yml` since you'll now want this file to be tracked. These are just there for development purposes in the template repo itself.
+1. **Simplicity First**: Clean, readable code over clever abstractions
+2. **Modularity**: Easy to swap components (database, notifications, etc.)
+3. **Production-Ready**: Proper error handling, typed interfaces
+4. **Scalable Design**: Clear upgrade path as volume grows
+5. **Human-Centered**: UI optimized for supervisor efficiency
 
-## Deploying to production
+## 🔮 Future Improvements
 
-This project is production-ready and includes a working `Dockerfile`. To deploy it to LiveKit Cloud or another environment, see the [deploying to production](https://docs.livekit.io/agents/ops/deployment/) guide.
+### Short Term
+- [ ] Add semantic search for knowledge base (embeddings)
+- [ ] Implement Twilio integration for real SMS
+- [ ] Add authentication for supervisor UI
+- [ ] Export reports (CSV/PDF)
 
-## Self-hosted LiveKit
+### Medium Term
+- [ ] Multi-supervisor support with assignment
+- [ ] Response templates for common answers
+- [ ] Analytics dashboard (response times, common questions)
+- [ ] Slack integration for supervisor notifications
 
-You can also self-host LiveKit instead of using LiveKit Cloud. See the [self-hosting](https://docs.livekit.io/home/self-hosting/) guide for more information. If you choose to self-host, you'll need to also use [model plugins](https://docs.livekit.io/agents/models/#plugins) instead of LiveKit Inference and will need to remove the [LiveKit Cloud noise cancellation](https://docs.livekit.io/home/cloud/noise-cancellation/) plugin.
+### Long Term
+- [ ] ML-powered answer suggestions based on similar past questions
+- [ ] Voice recording storage for quality assurance
+- [ ] Multi-language support
+- [ ] Integration with booking systems
 
-## License
+## 🛠️ Technology Stack
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- **Framework**: LiveKit Agents (Node.js)
+- **Language**: TypeScript
+- **AI Models**: 
+  - LLM: OpenAI GPT-4.1-mini
+  - STT: AssemblyAI Universal Streaming
+  - TTS: Cartesia Sonic 2
+- **UI**: Express + vanilla JavaScript (no build step)
+- **Database**: JSON files (development), ready for PostgreSQL/DynamoDB
+- **Runtime**: Node.js 22+
+
+## 📝 Development Notes
+
+### Error Handling
+- All database operations wrapped in try-catch
+- Graceful fallbacks for notification failures
+- Timeout handling for stale requests
+
+### Testing
+- Test the agent with various questions
+- Verify escalation flow works end-to-end
+- Check knowledge base updates persist
+- Confirm customer follow-up triggers
+
+### Monitoring
+- Console logs for all major operations
+- Request IDs for tracing
+- Usage metrics via LiveKit
+
+## 🎥 Demo Video
+
+Record a video showing:
+1. Starting the system
+2. Making a test call
+3. AI answering a known question
+4. AI escalating an unknown question
+5. Supervisor viewing and responding
+6. Customer receiving follow-up
+7. Knowledge base updated
+
+## 📄 License
+
+MIT License - See LICENSE file for details.
+
+## 👨‍💻 Author
+
+Built as part of the Frontdesk Engineering Test - demonstrating clean architecture, product thinking, and practical AI system design.
