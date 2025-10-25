@@ -137,14 +137,15 @@ Easily swap implementations without changing business logic.
 ### Installation
 
 1. **Clone and install dependencies**:
-   ```bash
+```bash
+git clone https://github.com/Lakshya-Lalotra/Human-in-loop-Ai-assistant
 pnpm install
 ```
 
 2. **Set up LiveKit credentials**:
    - Sign up at [LiveKit Cloud](https://cloud.livekit.io/)
    - Get your credentials from the dashboard
-   - Already provided in `.env.local` or create it:
+   - create new file in root with name `.env.local`:
    ```env
    LIVEKIT_URL=wss://your-project.livekit.cloud
    LIVEKIT_API_KEY=your_api_key
